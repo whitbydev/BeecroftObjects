@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>GLB Viewer</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three.js GLB Viewer</title>
 <style>
-body { margin: 0; background-color: #222; overflow: hidden; }
+body { margin: 0; overflow: hidden; background: #222; }
 canvas { display: block; }
 </style>
 </head>
 <body>
-    Version 3
+    Version 4
 <script type="module">
 import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
@@ -25,7 +25,6 @@ camera.position.set(0, 1, 3);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-renderer.outputEncoding = THREE.sRGBEncoding;
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -33,47 +32,45 @@ controls.target.set(0, 1, 0);
 controls.update();
 
 // Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
 dirLight.position.set(5, 10, 7.5);
 scene.add(dirLight);
 
 // Load GLB
 const loader = new GLTFLoader();
 loader.load(
-    'https://github.com/whitbydev/BeecroftObjects/blob/4f007d0d284489f0aca1803c555ad394642ebef1/Sutton%20Hoo%20Helmet.glb',
-    (gltf) => {
-        const model = gltf.scene;
-        scene.add(model);
+  'https://github.com/whitbydev/BeecroftObjects/blob/4f007d0d284489f0aca1803c555ad394642ebef1/Sutton%20Hoo%20Helmet.glb',
+  (gltf) => {
+    const model = gltf.scene;
+    scene.add(model);
 
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3()).length();
-        const maxDim = Math.max(size, 1);
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3()).length();
+    const maxDim = Math.max(size, 1);
 
-        camera.position.set(center.x, center.y + maxDim, center.z + maxDim * 2);
-        camera.lookAt(center);
-        controls.target.copy(center);
-        controls.update();
+    camera.position.set(center.x, center.y + maxDim, center.z + maxDim * 2);
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
 
-        function animate() {
-            requestAnimationFrame(animate);
-            model.rotation.y += 0.005;
-            renderer.render(scene, camera);
-        }
-        animate();
-    },
-    undefined,
-    (error) => console.error(error)
+    function animate() {
+      requestAnimationFrame(animate);
+      model.rotation.y += 0.005;
+      renderer.render(scene, camera);
+    }
+    animate();
+  },
+  undefined,
+  (error) => console.error(error)
 );
 
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 </script>
 </body>
 </html>
-
-
