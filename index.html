@@ -47,6 +47,21 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
             }
 
+            renderer.domElement.addEventListener('mousemove', (event) => {
+    // Use clientX and clientY for viewport-relative coordinates
+    const deltaMove = {
+        x: event.clientX - previousMousePosition.x,
+        y: event.clientY - previousMousePosition.y
+    };
+    if (isDragging) {
+        const rotationSpeed = 0.01;
+        object.rotation.y += deltaMove.x * rotationSpeed;
+        object.rotation.x += deltaMove.y * rotationSpeed;
+    }
+    // Update previous mouse position with clientX/Y
+    previousMousePosition = { x: event.clientX, y: event.clientY };
+});
+            
             // Mouse interaction for rotation
             renderer.domElement.addEventListener('mousedown', (event) => {
                 isDragging = true;
@@ -86,3 +101,4 @@
     </script>
 </body>
 </html>
+
