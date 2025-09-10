@@ -10,73 +10,66 @@
     </style>
 </head>
 <body>
-    Hello, World.
-    <script type="module">
-        import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
-        import { GLTFLoader } from 'https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
-        import { RoomEnvironment } from 'https://unpkg.com/three@0.152.2/examples/jsm/environments/RoomEnvironment.js';
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'https://unpkg.com/three@0.152.2/examples/jsm/environments/RoomEnvironment.js';
 
-        // Set up the scene, camera, and renderer
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.outputEncoding = THREE.sRGBEncoding;
-        document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
 
-        // Add OrbitControls for user interaction
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 0.5, 0);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.5, 0);
+controls.update();
+
+const roomEnv = new RoomEnvironment();
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+scene.environment = pmremGenerator.fromScene(roomEnv).texture;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(5, 10, 7.5);
+scene.add(directionalLight);
+
+const MODEL_URL = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';
+const loader = new GLTFLoader();
+
+loader.load(MODEL_URL, (gltf) => {
+    const model = gltf.scene;
+    scene.add(model);
+
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3()).length();
+    const maxDim = Math.max(size, 1);
+
+    camera.position.set(center.x, center.y + maxDim, center.z + maxDim * 2);
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        model.rotation.y += 0.005;
         controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+}, undefined, (error) => {
+    console.error(error);
+});
 
-        // Set up environment lighting
-        const roomEnv = new RoomEnvironment();
-        const pmremGenerator = new THREE.PMREMGenerator(renderer);
-        scene.environment = pmremGenerator.fromScene(roomEnv).texture;
-
-        // --- Hardcoded GLB URL ---
-        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';
-        // -------------------------
-
-        const loader = new GLTFLoader();
-
-        loader.load(MODEL_URL, (gltf) => {
-            const model = gltf.scene;
-            scene.add(model);
-            
-            // Adjust camera to fit the loaded model
-            const box = new THREE.Box3().setFromObject(model);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3()).length();
-            
-            camera.position.set(center.x, center.y + size * 0.5, center.z + size * 1.5);
-            camera.lookAt(center);
-            controls.target.copy(center);
-            controls.update();
-
-            // Animate the model's rotation
-            function animate() {
-                requestAnimationFrame(animate);
-                model.rotation.y += 0.005; // Rotate the model slowly
-                controls.update();
-                renderer.render(scene, camera);
-            }
-            animate();
-
-        }, undefined, (error) => {
-            console.error('An error occurred loading the model:', error);
-        });
-
-        // Handle window resizing
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-    </script>
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
 </body>
 </html>
-
