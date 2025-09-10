@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D Object</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #222; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, object, isDragging = false, previousMousePosition = { x: 0, y: 0 };
+
+        function init() {
+            // Set up the scene, camera, and renderer
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialiasing: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x222222); // Set background color
+            document.body.appendChild(renderer.domElement);
+
+            // Create the 3D object (a BoxGeometry)
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshPhongMaterial({ color: 0x00aaff, specular: 0x555555, shininess: 30 });
+            object = new THREE.Mesh(geometry, material);
+            scene.add(object);
+
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 1);
+            scene.add(directionalLight);
+
+            // Set camera position
+            camera.position.z = 5;
+
+            // Handle window resizing
+            window.addEventListener('resize', onWindowResize, false);
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            // Mouse interaction for rotation
+            renderer.domElement.addEventListener('mousedown', (event) => {
+                isDragging = true;
+            });
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            renderer.domElement.addEventListener('mousemove', (event) => {
+                const deltaMove = {
+                    x: event.offsetX - previousMousePosition.x,
+                    y: event.offsetY - previousMousePosition.y
+                };
+                if (isDragging) {
+                    const rotationSpeed = 0.01;
+                    object.rotation.y += deltaMove.x * rotationSpeed;
+                    object.rotation.x += deltaMove.y * rotationSpeed;
+                }
+                previousMousePosition = { x: event.offsetX, y: event.offsetY };
+            });
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            // Rotate the object on its own if not being dragged
+            if (!isDragging) {
+                object.rotation.x += 0.005;
+                object.rotation.y += 0.005;
+            }
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            init();
+            animate();
+        };
+    </script>
+</body>
+</html>
