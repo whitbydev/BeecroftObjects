@@ -15,17 +15,30 @@
     #container { width:100%; height:100vh; position:relative; overflow:hidden; }
     canvas { display:block; }
 
-    .hint {
+    .ui {
       position: absolute;
       left: 12px;
-      bottom: 12px;
-      font-size: 12px;
-      color: #bbb;
-      background: rgba(255,255,255,0.02);
-      padding: 8px 10px;
-      border-radius: 8px;
-      backdrop-filter: blur(4px);
+      top: 12px;
+      background: var(--panel);
+      padding: 10px;
+      border-radius: 10px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+      max-width: 420px;
+      font-size: 14px;
     }
+    .ui label { display:block; font-weight:600; margin-bottom:6px; color:#fff; }
+    .ui input[type="text"] { width:100%; box-sizing:border-box; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:var(--text); }
+    .ui .row { display:flex; gap:8px; margin-top:8px; }
+    .btn {
+      appearance:none; border:0; padding:8px 10px; border-radius:6px; cursor:pointer; font-weight:600;
+      background:var(--accent); color:#012; box-shadow: 0 6px 18px rgba(0,160,255,0.12);
+    }
+    .btn.secondary { background: transparent; border: 1px solid rgba(255,255,255,0.06); color:var(--text); }
+    .status { margin-top:8px; font-size:13px; opacity:0.9; color:#ddd; }
+    .hint { margin-top:6px; font-size:12px; color:#bbb; }
+    .progress { height:6px; background: rgba(255,255,255,0.06); border-radius:6px; margin-top:8px; overflow:hidden; }
+    .progress > i { display:block; height:100%; width:0%; background:linear-gradient(90deg, rgba(0,170,255,0.9), rgba(0,200,150,0.7)); transition:width 160ms linear; }
     .footer {
       position: absolute;
       right: 12px;
@@ -41,7 +54,23 @@
 </head>
 <body>
   <div id="container"></div>
-  <div class="hint">Tip: drag to orbit, scroll to zoom, right-drag or two-finger drag to pan.</div>
+
+  <div class="ui" id="ui">
+    <label for="urlInput">Load .glb from URL</label>
+    <input id="urlInput" type="text" placeholder="Paste .glb URL here (or leave default)" />
+    <div class="row">
+      <button class="btn" id="loadUrlBtn">Load URL</button>
+      <button class="btn secondary" id="resetBtn">Reset Scene</button>
+    </div>
+
+    <label style="margin-top:10px;">Or upload a local .glb</label>
+    <input id="fileInput" type="file" accept=".glb,.gltf" />
+
+    <div class="status" id="status">Ready</div>
+    <div class="progress" aria-hidden="true"><i id="progressBar"></i></div>
+    <div class="hint">Tip: drag to orbit, scroll to zoom, right-drag or two-finger drag to pan.</div>
+  </div>
+
   <div class="footer">Three.js GLB viewer</div>
 
   <script type="module">
@@ -50,12 +79,22 @@
     import { GLTFLoader } from 'https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
     import { RGBELoader } from 'https://unpkg.com/three@0.152.2/examples/jsm/loaders/RGBELoader.js';
 
-    // --- Hardcoded URL configuration ---
-    const HARDCODED_MODEL_URL = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';
-    // ------------------------------------
+    // ---------- Config ----------
+    const DEFAULT_MODEL_URL = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb';
+    // ----------------------------
+
+    // UI refs
+    const container = document.getElementById('container');
+    const urlInput = document.getElementById('urlInput');
+    const loadUrlBtn = document.getElementById('loadUrlBtn');
+    const fileInput = document.getElementById('fileInput');
+    const statusEl = document.getElementById('status');
+    const progressBar = document.getElementById('progressBar');
+    const resetBtn = document.getElementById('resetBtn');
+
+    urlInput.value = DEFAULT_MODEL_URL;
 
     // Scene setup
-    const container = document.getElementById('container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x222222);
 
@@ -90,12 +129,34 @@
 
     // Loaders
     const loader = new GLTFLoader();
-
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
 
+    // Load an HDR environment map for PBR materials
+    new RGBELoader()
+      .setDataType(THREE.UnsignedByteType)
+      .load('https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr', (hdr) => {
+        const envMap = pmremGenerator.fromEquirectangular(hdr).texture;
+        scene.environment = envMap;
+        scene.background = new THREE.Color(0x222222); // keep dark bg
+        hdr.dispose();
+      });
+
     // Keep track of loaded model so we can dispose/reset
     let currentModel = null;
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.style.color = isError ? '#ff8080' : '#ddd';
+    }
+
+    function setProgress(pct) {
+      progressBar.style.width = Math.round(pct * 100) + '%';
+    }
+
+    function clearProgress() {
+      progressBar.style.width = '0%';
+    }
 
     function disposeModel(obj) {
       if (!obj) return;
@@ -119,6 +180,8 @@
         disposeModel(currentModel);
         currentModel = null;
       }
+      setStatus('Scene reset. Ready.');
+      clearProgress();
       controls.reset();
       camera.position.set(0, 1.6, 3);
       controls.target.set(0, 0.6, 0);
@@ -127,18 +190,29 @@
 
     async function loadGLBFromUrl(url) {
       resetScene();
+      setStatus('Loading: ' + url);
       try {
+        loader.manager.onProgress = (url_, itemsLoaded, itemsTotal) => {
+          setProgress(itemsLoaded / itemsTotal);
+        };
+        loader.manager.onError = (e) => {
+          console.error('Load error', e);
+          setStatus('Error loading resources', true);
+        };
+
         loader.load(
           url,
           (gltf) => {
             const root = gltf.scene || gltf.scenes[0];
             if (!root) {
-              console.error('No scene in GLTF/GLB');
+              setStatus('No scene in that GLTF/GLB', true);
               return;
             }
+            // optional: center and scale model
             const box = new THREE.Box3().setFromObject(root);
             const size = box.getSize(new THREE.Vector3()).length();
             const center = box.getCenter(new THREE.Vector3());
+
             const desiredSize = 1.5;
             const scale = desiredSize / size;
             root.position.x += (root.position.x - center.x) * scale;
@@ -148,21 +222,31 @@
 
             scene.add(root);
             currentModel = root;
+
+            setStatus('Loaded successfully');
+            clearProgress();
             fitCameraToObject(camera, root, controls);
           },
           (xhr) => {
-            // progress updates are no longer shown in the UI
+            if (xhr.total) {
+              setProgress(xhr.loaded / xhr.total);
+            } else {
+              setProgress(0.5);
+            }
           },
           (err) => {
-            console.error('Failed to load model:', err);
+            console.error('GLTF load error', err);
+            setStatus('Failed to load model: ' + (err?.message || err), true);
+            clearProgress();
           }
         );
       } catch (err) {
-        console.error('Error:', err.message);
+        console.error(err);
+        setStatus('Error: ' + err.message, true);
       }
     }
 
-    // Fit camera function
+    // Fit camera to object
     function fitCameraToObject(camera, object, controls, offset = 1.25) {
       const boundingBox = new THREE.Box3();
       boundingBox.setFromObject(object);
@@ -175,6 +259,7 @@
       let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2));
 
       cameraZ *= offset;
+
       camera.position.z = center.z + cameraZ;
       camera.position.x = center.x;
       camera.position.y = center.y + Math.max(size.y * 0.5, 0.5);
@@ -189,6 +274,33 @@
       }
     }
 
+    // File input handler
+    fileInput.addEventListener('change', (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.glb') && !file.name.toLowerCase().endsWith('.gltf')) {
+        setStatus('Please select a .glb or .gltf file', true);
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      loadGLBFromUrl(url).then(() => {
+        setTimeout(() => URL.revokeObjectURL(url), 20000);
+      });
+    });
+
+    // Load URL button
+    loadUrlBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      if (!url) {
+        setStatus('Please paste a .glb URL first', true);
+        return;
+      }
+      loadGLBFromUrl(url);
+    });
+
+    // Reset
+    resetBtn.addEventListener('click', resetScene);
+
     // Resize handling
     window.addEventListener('resize', onWindowResize);
     function onWindowResize() {
@@ -201,3 +313,25 @@
     const clock = new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+
+      if (!controls.dragging && currentModel) {
+        currentModel.rotation.y += 0.05 * dt;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // Start with default model loaded
+    loadGLBFromUrl(DEFAULT_MODEL_URL);
+    animate();
+
+    // Clean up on page unload
+    window.addEventListener('unload', () => {
+      resetScene();
+      renderer.dispose();
+      pmremGenerator.dispose();
+    });
+  </script>
+</body>
+</html>
